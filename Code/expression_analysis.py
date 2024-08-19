@@ -1,3 +1,14 @@
+"""
+Luke Kennedy - Fong-McMaster et al. (2024)
+
+Helper functions used in GTEx RNA-Seq analysis file, `get_heart_GTEx.py`.
+Contains functions for:
+	formatting
+	subsetting data from transcriptomics data
+	differential expression analysis, PLS-DA and TuRF methods
+	Plotting transcriptomics-related figures.
+"""
+
 ## Code for identifying top and bottom expressors of SLC7A11 in GTEx skeletal muscle data
 
 
@@ -5,8 +16,6 @@
 import numpy as np
 import pandas as pd
 import collections
-
-import conorm 	# TMM-normalization
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -22,11 +31,14 @@ from skrebate import TuRF, ReliefF
 import scipy.stats as stats
 from statsmodels.stats.multitest import fdrcorrection
 
+
+
 # Define a funtion to format the age-brackets provided for GTEx samples to ge the minimum age
 def format_age(sample_info):
 	sample_info['Age'] = sample_info.loc[:,'Age Bracket'].str.split('-', n=1).str[0] 	# splits age range into min and max values, then return the minimum age value as a new column
 	sample_info['Age'] = (sample_info['Age']).astype(int)
 	return sample_info
+
 
 # Given a subset of histology sample information, return a corresponding subset of gene expression data
 def subset_expr(subset_ids, expr_df):
@@ -37,6 +49,7 @@ def subset_expr(subset_ids, expr_df):
 
 	return expr_df[subset_columns]
 
+
 # define a method to detect and remove outliers by Z-score before selecting ourtop and bottom expressors
 def remove_outliers(expr_data):
 
@@ -45,6 +58,7 @@ def remove_outliers(expr_data):
 
 	# Return expression data with outliers removed, identified as subjects with Z-score > 3 or < -3
 	return Z_expr[Z_expr.between(-3,3)]
+
 
 # define a method to sort and subset expression data into top and bottom expressors of a spceified gene
 def get_expressors(expr_df, sort_by, n_samples=25, clean_outliers=True):
@@ -58,6 +72,7 @@ def get_expressors(expr_df, sort_by, n_samples=25, clean_outliers=True):
 	bottom_expr = gene_expr.nsmallest(n_samples).index
 
 	return top_expr, bottom_expr
+
 
 # Want to examine the gene expression distributions for each of our groups to observe any differences
 # Given a wide format dataframe of genes x samples, convert to a longform DF and plot histogram of expression values
@@ -90,6 +105,7 @@ def plot_exprDistribution(expr_df, group_ids=False, group_names=False, group_col
 
 	return hist
 
+
 # Define a function to create a split barplot for our expression groups through multiple axes to create broken y-axis
 def split_bar(plot_data, plot_x, plot_y, plot_hue=False):
 	fig, (ax1, ax2) = plt.subplots(ncols=1, nrows=2, sharex=True)
@@ -118,6 +134,7 @@ def split_bar(plot_data, plot_x, plot_y, plot_hue=False):
 	bar1.get_xaxis().set_visible(False) 	# x-axis is shared with lower plot
 
 	return fig
+
 
 # define a method for identifying significant genes and differential expression as volcano plot
 def volcano(data, x, y, x_thresh=1, y_thresh=0.05, sig_palette=None):
@@ -200,6 +217,7 @@ def VIP(model):
     vip = np.sqrt(features_*(w**2 @ inner_sum)/ SS_total)
     return vip
 
+
 # define method to format inputs and run PLS-DA on data to extract important features
 def run_plsda(data, classes, standardize=True, get_weights=True, get_vip=True):
 
@@ -254,8 +272,6 @@ def run_plsda(data, classes, standardize=True, get_weights=True, get_vip=True):
 
 	else:
 		return pls.transform(X=x, Y=y.tranpose()), scores
-
-
 
 
 # define a method to run skrebate's Relief methods for feature importance/selection
@@ -325,114 +341,6 @@ def run_relief(data, targets, discrete=False, multiround=False, multi_headers=No
 		return scores
 
 
-
-# define recursive function for flattening a list which contains lists and int values such that the return is a list of all elements
-def flatten(xs):
-	"""
-	xs = a list of lists and values
-	"""
-	if isinstance(xs, collections.Iterable):
-		return [a for x in xs for a in flatten(x)]
-	else:
-		return [xs]
-
-
-# recursive function to call in get_nearest to get original values from clusters in a linkage matrix
-def get_child(Z, i, n, idxs=False):
-
-	"""
-	Z = a scipy (or sklearn?) linkage matrix where Z[i] = [node_j, node_k, distance, n_values]
-	i = index where we need to get child leaves
-	n = number of original values, will inform what is a new cluster vs. original value
-	idxs = Optional, list of linkage matrix idxs to append child idxs to
-	"""
-	# Get our index values to return
-	jeff = 0
-	val_0 = Z[int(i)][0]
-	val_1 = Z[int(i)][1]
-	idx_0 = int(i)
-	idx_1 = int(i)
-
-	# Check if these values are original values or clusters (where val > n)
-	if val_0 > n:
-		# print(f'!!get_child()!! val_0 > n')
-		idx_0, val_0 = get_child(Z, val_0-n, n, idxs)
-	if val_1 > n:
-		# print(f'!!get_child()!! val_1 > n')
-		idx_1, val_1 = get_child(Z, val_1-n, n, idxs)
-	else:
-		# print(f'!!get_child()!! all vals < n')
-		jeff = 1
-
-	# return the indexes obtained over recursively getting clusters until original values
-	if idxs:
-		idxs = flatten([idx_0, idx_1])
-		# print(f'get_child() return, i={int(i)}:\n\tl={Z[int(i)]}\n\tReturns:\n\t\tidxs: {idxs}\n\t\tvals: {[val_0,val_1]} ')
-		return idxs, [val_0, val_1]
-
-	else:
-		return [val_0, val_1]
-
-
-# Define function to get the nearest neighbours of a given observation in a hierarchical clustering linkage map
-def get_nearest(Z, node_index, max_steps=False, max_dist=False, get_links=False):
-
-	"""
-	Z = a scipy (or sklearn?) linkage matrix where Z[i] = [node_j, node_k, distance, n_values]
-		is the new linkage formed at step_i in the clustering algorithm, where a node may be an original value or a new cluster if node_index > n (original samples) and node index = n+i
-	node_index = value index of either the original value we are interested in, or a new cluster formed by the algorithm if node_index > n
-	max_steps = thresholding parameter for the number of clustering steps to extend our nearest neighbour search for
-	max_dist = thresholding parameter for a distance cut-off to threshold the number of clusters we obtain
-	sub_links = whether to get and return the sub linkage matrix, 
-	"""
-
-	n = np.shape(Z)[0] + 1 	# number of original observations/values, corresponds to rows + 1 in Z
-	links_idx = [] 	# list of all linkage matrix indexes for generating a sub matrix if get_links=True
-	steps = 0 	# Thresholding checks
-	last_i = 0
-
-	# Find the first clustering of our node of interest and get all original values in this clustering (using get_child())
-	for i, l in enumerate(Z):
-		# First, iterate over the matrix and work "up" the linkage matrix while checking for our thresholding parameters
-		if l[0] == node_index or l[1] == node_index:
-			links_idx.append(i)
-
-			if max_steps and steps < max_steps: 	# Check that we have not reached max steps
-				steps += 1
-				node_index = i + n
-
-			elif max_dist and l[2] < max_dist: 	# Check that we have not surpassed max distance
-				last_i = i
-				node_index = i + n
-
-			else:
-				if max_dist:
-					l = Z[last_i] 	# For max_dist threshold, we check that our cluster distance is less than thershold, when False we must proceed with the last cluster under the distance threshold
-					del links_idx[-1]
-				# once steps = max_steps we can work back through the linkage matrix to get all the original values contained within clusters
-				if l[0] > n:
-					# print(f'[l[0]] > n')
-					idxs_0, val_0 = get_child(Z, l[0]-n, n, links_idx)
-				else:
-					val_0 = l[0]
-
-				if l[1] > n:
-					# print(f'[l[1]] > n')
-					idxs_1, val_1 = get_child(Z, l[1]-n, n, links_idx)
-				else:
-					val_1 = l[1]
-
-	# convert val_0 and val_1 from lists of lists to flattened list for easy indexing
-	vals = [x for xs in [val_0, val_1] for x in xs]
-
-	# now can return the final list of values
-	if get_links:
-		idxs = [x for xs in [links_idx, idxs_0, idxs_1] for x in xs]
-		idxs = sorted(list(set(idxs)))
-		return Z[idxs], vals
-	else:
-		return vals
-
 # define function for applying PCA to our data
 def fit_pca(expr_data):
 
@@ -448,6 +356,7 @@ def fit_pca(expr_data):
 
 	return PC_df
 
+
 # define a wilcoxon method which can be applied between our groups across genes to determine significant differences
 # Test of independence is wilcoxon ranked sums test
 def gene_rank_sum(geneExpr, group_a, group_b):
@@ -458,6 +367,7 @@ def gene_rank_sum(geneExpr, group_a, group_b):
 	stat, pval = stats.ranksums(x=geneExpr_a, y=geneExpr_b, alternative='two-sided')
 
 	return pval
+
 
 # define a method for determining FC between our groups (Fold change as group_a/group_b)
 # Ideally should be able to determine multiple FCs (log10, log2, median, mean, etc.)
@@ -484,64 +394,4 @@ def fold_change(geneExpr, group_a, group_b, method='median', log2=True):
 	else:
 		logFC_expr = pd.Series(data=np.log(gene_fc), index=geneExpr.index, name='Log2 fold change')
 
-	return logFC_expr
-
-
-# # get top and bottom n expressors of SLC7A11 for each of our groups
-# slc7a11_id = 'ENSG00000151012.13'
-# old_exprDF = old_exprDF.loc[:, old_exprDF.loc[slc7a11_id] !=0] 	# remove any 0 expressors before getting top and bottom expressors
-# young_exprDF = young_exprDF.loc[:, young_exprDF.loc[slc7a11_id] !=0]
-
-# old_top, old_bottom = get_expressors(expr_df=old_exprDF, n_samples=25, sort_by=slc7a11_id)
-# young_top, young_bottom = get_expressors(expr_df=young_exprDF, n_samples=25, sort_by=slc7a11_id)
-
-# ## Create histograms to understand the distribution of gene expression in our different groups
-# expr_plt = plot_exprDistribution(expr_df=tmm_exprDF, group_ids=[old_top, old_bottom], group_names=['Top 25 Old', 'Bottom 25 Old'], group_colours=['blue', 'orange'])
-# expr_plt.set_xlabel('mRNA Expression (TPM, TMM normalized)')
-# fig = expr_plt.get_figure()
-# fig.savefig('expr_hist_loglog_TMM_old.png')
-# plt.close(fig)
-
-# expr_plt = plot_exprDistribution(expr_df=tmm_exprDF, group_ids=[young_top, young_bottom], group_names=['Top 25 Young', 'Bottom 25 Young'], group_colours=['purple', 'gold'])
-# expr_plt.set_xlabel('mRNA Expression (TPM, TMM normalized)')
-# fig = expr_plt.get_figure()
-# fig.savefig('expr_hist_loglog_TMM_young.png')
-# plt.close(fig)
-
-# expr_plt = plot_exprDistribution(expr_df=tmm_exprDF, group_ids=[old_top, old_bottom, young_top, young_bottom], group_names=['Top 25 Old', 'Bottom 25 Old', 'Top 25 Young', 'Bottom 25 Young'], group_colours=['blue', 'orange', 'purple', 'gold'])
-# expr_plt.set_xlabel('mRNA Expression (TPM, TMM normalized)')
-# fig = expr_plt.get_figure()
-# fig.savefig('expr_hist_loglog_TMM_all.png')
-# plt.close(fig)
-
-
-# plot_data = tmm_exprDF.loc[slc7a11_id, old_top.tolist() + old_bottom.tolist()[::-1]] 	# get expression values for only the top and bottom IDs (NOTE: reverse bottom list to be ordered largest-> smallest)
-
-# # plot these expression levels as a bar plot
-# plot_df = plot_data.to_frame()
-
-# plot_df['GTEx samples'] = 'Top 25 Old'
-# plot_df.loc[old_bottom.tolist(),'GTEx samples'] = 'Bottom 25 Old'
-# plot_df['GTEx sample ID'] = plot_df.index
-# plot_df.to_csv(rf'.\data\GTEx\oldHighLow_xctExpressors_GTExv8.csv')
-# # exit()
-
-# slc7a11_expr = split_bar(plot_data=plot_df, plot_x='GTEx sample ID', plot_y='ENSG00000151012.13', plot_hue='GTEx samples')
-# slc7a11_expr.text(0.0, 0.55, 'SLC7A11 muscle mRNA (TPM, TMM normalized)', va='center', rotation='vertical') 	# Add y-axis text across both subplots
-# slc7a11_expr.savefig(f'tmmSLC7A11_highLowGTEx_old_Broken.png', bbox_inches='tight')
-
-# plot_data = tmm_exprDF.loc[slc7a11_id, young_top.tolist() + young_bottom.tolist()[::-1]] 	# get expression values for only the top and bottom IDs (NOTE: reverse bottom list to be ordered largest-> smallest)
-
-# # plot these expression levels as a bar plot
-# plot_df = plot_data.to_frame()
-
-# plot_df['GTEx samples'] = 'Top 25 Young'
-# plot_df.loc[young_bottom.tolist(),'GTEx samples'] = 'Bottom 25 Young'
-# plot_df['GTEx sample ID'] = plot_df.index
-# plot_df.to_csv(rf'.\data\GTEx\youngHighLow_xctExpressors_GTExv8.csv')
-# # # exit()
-
-# slc7a11_expr = split_bar(plot_data=plot_df, plot_x='GTEx sample ID', plot_y='ENSG00000151012.13', plot_hue='GTEx samples')
-# slc7a11_expr.text(0.0, 0.55, 'SLC7A11 muscle mRNA (TPM, TMM normalized)', va='center', rotation='vertical') 	# Add y-axis text across both subplots
-# slc7a11_expr.savefig(f'tmmSLC7A11_highLowGTEx_young_Broken.png', bbox_inches='tight')
-
+	return logFC_expr 
