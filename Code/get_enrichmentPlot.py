@@ -1,10 +1,11 @@
 """
+Luke Kennedy - Fong-McMaster et al. (2024)
+
 Code for generating enrichment plots of ShinyGO data for enrichments in genes correlated to Slc7a11 in C2C12 differentiation datasets as reported in Kanaan et al (2023)
 	- Loads a data file contain ShinyGO ouputs for both positive and negative correlated gene sets
 	- Transforms values (i.e. FDR values) for better visualization
 	- Plots and formats the figures
 	- Save figure
-
 """
 
 # import modules
@@ -38,8 +39,8 @@ def main():
 	'''
 
 
-	UP_FILE = r'ShinyGo\OPA_conserved_UP_KEGG.csv'
-	DOWN_FILE = r'ShinyGo\OPA_conserved_DOWN_KEGG.csv'
+	UP_FILE = r'ShinyGO\OPA_conserved_UP_KEGG.csv'
+	DOWN_FILE = r'ShinyGO\OPA_conserved_DOWN_KEGG.csv'
 
 	COLOURS = [[249,165,27], [58,84,164]] 	# Orange and blue
 	MAX_PATHS = 10
@@ -152,7 +153,7 @@ def main():
 	ax.spines['bottom'].set_linewidth(2)
 
 	# Save figure
-	plt.savefig(rf'outputs\enrichment_KEGG2_test.tiff', bbox_inches='tight', pad_inches=0.9, dpi=600)
+	plt.savefig(rf'OPA1_enrichment_KEGG.tiff', bbox_inches='tight', pad_inches=0.9, dpi=600)
 
 # RUN MAIN()
 main()
