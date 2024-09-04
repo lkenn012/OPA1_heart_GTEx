@@ -1,4 +1,6 @@
 """
+Luke Kennedy - Fong-McMaster et al. (2024)
+
 Code for subsetting bulk GTEx RNA-Seq data for analysis as reported in Fong-McMaster et al. (2024)
 	Given a transcriptomics file for all GTEx samples (Download: https://gtexportal.org/home/downloads/adult-gtex/bulk_tissue_expression)
 	we want to subset the data for our samples of interest (e.g., a tissue type) and save the subset in a smaller, more convenient file.
